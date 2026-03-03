@@ -1,3 +1,6 @@
+export const APP_TIMEZONE = "Asia/Kolkata";
+export const APP_TIMEZONE_LABEL = "IST (UTC+05:30)";
+
 export function getDayInTimezone(timezone: string, inputDate = new Date()) {
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone,

@@ -45,6 +45,7 @@ export interface EvaluationFeedback {
   improvements: string[];
   summary: string;
   isCorrect: boolean;
+  directMatch?: boolean;
 }
 
 export interface GiveUpFeedback {
@@ -69,6 +70,8 @@ export interface Profile {
   email: string;
   timezone: string;
   streak_count: number;
+  streak_freezes: number;
+  last_freeze_grant_date: string | null;
   last_active_date: string | null;
   xp: number;
   level: string;
@@ -77,4 +80,67 @@ export interface Profile {
   is_admin: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface TopicMastery {
+  id: string;
+  user_id: string;
+  topic_id: string;
+  mastery_score: number;
+  attempts: number;
+  correct_attempts: number;
+  last_score: number | null;
+  created_at: string;
+  updated_at: string;
+  topic?: Topic;
+}
+
+export interface Mission {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  scope: "daily" | "weekly";
+  metric: "complete_questions" | "correct_answers" | "no_hint_wins" | "direct_matches" | "topic_diversity";
+  target: number;
+  xp_reward: number;
+  active: boolean;
+  created_at: string;
+}
+
+export interface UserMissionProgress {
+  id: string;
+  user_id: string;
+  mission_id: string;
+  period_start: string;
+  period_end: string;
+  progress: number;
+  completed: boolean;
+  claimed: boolean;
+  completed_at: string | null;
+  claimed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  mission?: Mission;
+}
+
+export interface Achievement {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  category: "streak" | "accuracy" | "xp" | "direct_match" | "mastery";
+  threshold: number;
+  xp_reward: number;
+  active: boolean;
+  created_at: string;
+}
+
+export interface UserAchievement {
+  id: string;
+  user_id: string;
+  achievement_id: string;
+  unlocked_at: string;
+  xp_awarded: number;
+  achievement?: Achievement;
 }

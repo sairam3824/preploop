@@ -50,3 +50,19 @@ export function unauthorizedResponse(message = "Unauthorized") {
 export function forbiddenResponse(message = "Forbidden") {
   return Response.json({ error: message }, { status: 403 });
 }
+
+export function isAuthError(error: unknown): error is Error {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return error.message === "Missing bearer token" || error.message === "Invalid session token";
+}
+
+export function routeErrorResponse(error: unknown, fallback = "Internal server error") {
+  if (isAuthError(error)) {
+    return unauthorizedResponse(error.message);
+  }
+
+  return Response.json({ error: error instanceof Error ? error.message : fallback }, { status: 500 });
+}
