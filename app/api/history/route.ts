@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { getAuthContext, unauthorizedResponse } from "@/lib/auth";
+import { getAuthContext, routeErrorResponse } from "@/lib/auth";
+import { getGamificationSnapshot } from "@/lib/db";
 import { getServiceClient } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
@@ -7,7 +8,7 @@ export async function GET(req: NextRequest) {
     const auth = await getAuthContext(req);
     const supabase = getServiceClient();
 
-    const [{ data: profile }, { data: history }, { data: topicStats }] = await Promise.all([
+    const [{ data: profile }, { data: history }, { data: topicStats }, gamification] = await Promise.all([
       supabase.from("profiles").select("xp, level, streak_count, total_questions, correct_answers").eq("id", auth.userId).single(),
       supabase
         .from("performance_history")
@@ -18,7 +19,8 @@ export async function GET(req: NextRequest) {
         .from("daily_questions")
         .select("ai_score, question:questions(topic_id, topic:topics(name))")
         .eq("user_id", auth.userId)
-        .not("ai_score", "is", null)
+        .not("ai_score", "is", null),
+      getGamificationSnapshot(auth.userId)
     ]);
 
     const topicMap = new Map<string, { topicName: string; total: number; scoreSum: number }>();
@@ -54,9 +56,10 @@ export async function GET(req: NextRequest) {
     return Response.json({
       profile,
       history: history ?? [],
-      topicProgress: progress
+      topicProgress: progress,
+      gamification
     });
   } catch (error) {
-    return unauthorizedResponse(error instanceof Error ? error.message : "Unauthorized");
+    return routeErrorResponse(error);
   }
 }

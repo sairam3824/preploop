@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
-import { getAuthContext, unauthorizedResponse } from "@/lib/auth";
+import { getAuthContext, routeErrorResponse } from "@/lib/auth";
 import { ensureChatSession, getChatMessages, saveChatMessage } from "@/lib/db";
+import { getChatMemoryContext, maybeRefreshChatSessionSummary } from "@/lib/chat-memory";
 import { getModelName, getOpenAIClient } from "@/lib/openai";
 import { getServiceClient } from "@/lib/supabase/server";
 
@@ -35,12 +36,24 @@ export async function GET(req: NextRequest) {
       return Response.json({ error: "dailyQuestionId is required." }, { status: 400 });
     }
 
+    const supabase = getServiceClient();
+    const { data: daily, error: dailyError } = await supabase
+      .from("daily_questions")
+      .select("id")
+      .eq("id", dailyQuestionId)
+      .eq("user_id", auth.userId)
+      .single();
+
+    if (dailyError || !daily) {
+      return Response.json({ error: "Daily question not found." }, { status: 404 });
+    }
+
     const sessionId = await ensureChatSession(auth.userId, dailyQuestionId);
     const messages = await getChatMessages(sessionId);
 
     return Response.json({ sessionId, messages });
   } catch (error) {
-    return unauthorizedResponse(error instanceof Error ? error.message : "Unauthorized");
+    return routeErrorResponse(error);
   }
 }
 
@@ -68,7 +81,7 @@ export async function POST(req: NextRequest) {
     const question = Array.isArray(daily.question) ? daily.question[0] : daily.question;
 
     const sessionId = await ensureChatSession(auth.userId, body.dailyQuestionId);
-    const messages = await getChatMessages(sessionId);
+    const { sessionSummary, recentMessages } = await getChatMemoryContext(sessionId, 12);
 
     const openai = getOpenAIClient();
     const response = await openai.chat.completions.create({
@@ -83,7 +96,15 @@ export async function POST(req: NextRequest) {
           role: "system",
           content: `Question: ${question?.prompt}\nIdeal answer reference: ${question?.ideal_answer}`
         },
-        ...messages.slice(-12).map((m) => ({
+        ...(sessionSummary
+          ? [
+              {
+                role: "system" as const,
+                content: `Session memory summary:\n${sessionSummary}`
+              }
+            ]
+          : []),
+        ...recentMessages.map((m) => ({
           role: m.role as "user" | "assistant",
           content: m.content
         })),
@@ -101,9 +122,10 @@ export async function POST(req: NextRequest) {
 
     await saveChatMessage(sessionId, "user", body.message.trim());
     await saveChatMessage(sessionId, "assistant", assistantReply);
+    await maybeRefreshChatSessionSummary(sessionId);
 
     return Response.json({ reply: assistantReply, sessionId });
   } catch (error) {
-    return unauthorizedResponse(error instanceof Error ? error.message : "Unauthorized");
+    return routeErrorResponse(error);
   }
 }
