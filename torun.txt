@@ -1,0 +1,3 @@
+conda activate daily-interview-practice
+npm run build
+npm run dev
