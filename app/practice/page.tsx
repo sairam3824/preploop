@@ -15,6 +15,7 @@ interface DailyQuestionItem {
   xp_earned: number;
   ai_feedback: unknown;
   question: {
+    question_number: number;
     prompt: string;
     difficulty: number;
     topic?: { name?: string };
@@ -27,6 +28,21 @@ interface DailyResponse {
   timezone: string;
   hoursUntilUnlock: number;
   questions: DailyQuestionItem[];
+  answeredByTopic: Array<{
+    topicName: string;
+    questions: Array<{
+      id: string;
+      day: string;
+      questionNumber: number;
+      prompt: string;
+      score: number | null;
+      xpEarned: number;
+      gaveUp: boolean;
+    }>;
+  }>;
+  message?: string;
+  added?: boolean;
+  addedQuestionId?: string | null;
 }
 
 interface EvalResponse {
@@ -59,6 +75,7 @@ export default function PracticePage() {
   const [answer, setAnswer] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [requestingNext, setRequestingNext] = useState(false);
   const [result, setResult] = useState<EvalResponse | null>(null);
 
   useEffect(() => {
@@ -71,7 +88,8 @@ export default function PracticePage() {
     })
       .then((res) => {
         setDaily(res);
-        setSelectedId(res.questions[0]?.id ?? null);
+        const nextOpen = res.questions.find((question) => !question.locked)?.id ?? null;
+        setSelectedId(nextOpen ?? res.questions[0]?.id ?? null);
       })
       .catch((error) => setMessage(error.message));
   }, [accessToken]);
@@ -107,6 +125,8 @@ export default function PracticePage() {
           headers: { "x-user-timezone": timezone }
         });
         setDaily(refreshed);
+        const nextOpen = refreshed.questions.find((question) => !question.locked)?.id ?? null;
+        setSelectedId(nextOpen ?? refreshed.questions[0]?.id ?? null);
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Request failed.");
@@ -118,6 +138,34 @@ export default function PracticePage() {
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     await evaluate("submit");
+  }
+
+  async function requestNextQuestion() {
+    if (!accessToken) return;
+
+    setRequestingNext(true);
+    setMessage(null);
+
+    try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const response = await apiFetch<DailyResponse>("/api/daily", accessToken, {
+        method: "POST",
+        headers: { "x-user-timezone": timezone },
+        body: JSON.stringify({ action: "next" })
+      });
+
+      setDaily(response);
+      setSelectedId((prev) => response.addedQuestionId ?? prev ?? response.questions[0]?.id ?? null);
+      setResult(null);
+      setAnswer("");
+      if (response.message) {
+        setMessage(response.message);
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to request next question.");
+    } finally {
+      setRequestingNext(false);
+    }
   }
 
   if (loading) {
@@ -153,6 +201,7 @@ export default function PracticePage() {
                 }}
               >
                 <span>Q{index + 1}</span>
+                <span>#{question.question.question_number}</span>
                 <span>D{question.question.difficulty}</span>
                 <span>{question.locked ? "Locked" : "Open"}</span>
               </button>
@@ -161,6 +210,11 @@ export default function PracticePage() {
         ) : (
           <p className="muted">No questions configured yet. Ask admin to add active questions.</p>
         )}
+        <div className="inline-actions">
+          <button type="button" className="secondary" onClick={requestNextQuestion} disabled={requestingNext || submitting}>
+            {requestingNext ? "Loading..." : "Ask for Next Question"}
+          </button>
+        </div>
       </div>
 
       {selectedQuestion ? (
@@ -286,6 +340,37 @@ export default function PracticePage() {
         <h3>Unlock Rules</h3>
         <p className="muted">Once attempted, a question is locked until the next local midnight.</p>
         <p className="muted">Approx. {daily?.hoursUntilUnlock ?? "-"} hour(s) until next unlock window.</p>
+      </div>
+
+      <div className="card span-2">
+        <h3>Answered Questions by Topic</h3>
+        {daily?.answeredByTopic?.length ? (
+          <div className="topic-progress-list">
+            {daily.answeredByTopic.map((topic) => (
+              <details key={topic.topicName} open>
+                <summary>
+                  {topic.topicName} ({topic.questions.length})
+                </summary>
+                <div className="admin-list">
+                  {topic.questions.map((question) => (
+                    <div key={question.id} className="admin-item">
+                      <div>
+                        <strong>Q{question.questionNumber}</strong>
+                        <p className="muted small">{question.prompt}</p>
+                      </div>
+                      <div className="muted small">
+                        {question.gaveUp ? "Gave up" : `Score ${question.score ?? "-"}/10`} • XP {question.xpEarned} •{" "}
+                        {question.day}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            ))}
+          </div>
+        ) : (
+          <p className="muted">No answered questions yet.</p>
+        )}
       </div>
     </AppShell>
   );

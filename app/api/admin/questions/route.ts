@@ -7,6 +7,7 @@ type Difficulty = 1 | 2 | 3 | 4 | 5;
 
 interface QuestionDraft {
   topic_id: string;
+  question_number: number;
   prompt: string;
   ideal_answer: string;
   key_points: string[];
@@ -39,6 +40,15 @@ function normalizeKeyPoints(value: unknown): string[] {
     .split(/\r?\n|[|;]/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function normalizeQuestionNumber(value: unknown, fallback = 1) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return Math.max(1, Math.round(fallback));
+  }
+
+  return Math.max(1, Math.round(parsed));
 }
 
 function extractTextContent(content: unknown): string {
@@ -312,9 +322,12 @@ function normalizeBulkRow(
 
   const promptValue = row.data.prompt ?? row.data.question;
   const answerValue = row.data.ideal_answer ?? row.data.idealAnswer ?? row.data.answer;
+  const questionNumberValue =
+    row.data.question_number ?? row.data.question_no ?? row.data.questionNumber ?? row.data.questionNo;
   const prompt = typeof promptValue === "string" ? promptValue.trim() : "";
   const ideal_answer = typeof answerValue === "string" ? answerValue.trim() : "";
   const key_points = normalizeKeyPoints(row.data.key_points ?? row.data.keyPoints);
+  const question_number = normalizeQuestionNumber(questionNumberValue, Math.max(1, row.row - 1));
   const activeValue = row.data.active;
   const active =
     typeof activeValue === "boolean"
@@ -353,6 +366,7 @@ function normalizeBulkRow(
   return {
     draft: {
       topic_id,
+      question_number,
       prompt,
       ideal_answer,
       key_points,
@@ -372,7 +386,9 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabase
       .from("questions")
       .select("*, topic:topics(id, name)")
-      .order("created_at", { ascending: false });
+      .order("topic_id", { ascending: true })
+      .order("question_number", { ascending: true })
+      .order("created_at", { ascending: true });
 
     if (error) {
       return Response.json({ error: error.message }, { status: 500 });
@@ -403,6 +419,7 @@ export async function POST(req: NextRequest) {
     if (!isBulk) {
       const draft: QuestionDraft = {
         topic_id: String(body.topic_id ?? "").trim(),
+        question_number: normalizeQuestionNumber(body.question_number ?? body.questionNo ?? body.question_no, 1),
         prompt: String(body.prompt ?? "").trim(),
         ideal_answer: String(body.ideal_answer ?? "").trim(),
         key_points: normalizeKeyPoints(body.key_points),
@@ -527,6 +544,9 @@ export async function PUT(req: NextRequest) {
     };
 
     if (typeof body.topic_id === "string") updatePayload.topic_id = body.topic_id.trim();
+    if (body.question_number !== undefined || body.questionNo !== undefined || body.question_no !== undefined) {
+      updatePayload.question_number = normalizeQuestionNumber(body.question_number ?? body.questionNo ?? body.question_no);
+    }
     if (typeof body.prompt === "string") updatePayload.prompt = body.prompt.trim();
     if (typeof body.ideal_answer === "string") updatePayload.ideal_answer = body.ideal_answer.trim();
     if (typeof body.active === "boolean") updatePayload.active = body.active;

@@ -10,6 +10,7 @@ export interface Topic {
 export interface Question {
   id: string;
   topic_id: string;
+  question_number: number;
   prompt: string;
   ideal_answer: string;
   key_points: string[];

@@ -670,6 +670,22 @@ button:focus-visible,
   gap: 0;
 }
 
+.admin-topic-group {
+  border-top: 1px solid var(--rule);
+  padding-top: 0.35rem;
+}
+
+.admin-topic-group + .admin-topic-group {
+  margin-top: 0.85rem;
+}
+
+.admin-topic-group summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text);
+  padding: 0.5rem 0;
+}
+
 .admin-item {
   display: flex;
   justify-content: space-between;

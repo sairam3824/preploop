@@ -25,6 +25,7 @@ create table if not exists public.topics (
 create table if not exists public.questions (
   id uuid primary key default gen_random_uuid(),
   topic_id uuid not null references public.topics(id) on delete cascade,
+  question_number integer not null default 1 check (question_number >= 1),
   prompt text not null,
   ideal_answer text not null,
   key_points text[] not null default '{}',
@@ -221,3 +222,8 @@ with check (auth.uid() = user_id);
 create index if not exists idx_daily_questions_user_day on public.daily_questions (user_id, day);
 create index if not exists idx_chat_messages_session_created on public.chat_messages (session_id, created_at);
 create index if not exists idx_performance_history_user_day on public.performance_history (user_id, day);
+
+alter table public.questions
+add column if not exists question_number integer not null default 1;
+
+create index if not exists idx_questions_topic_number on public.questions (topic_id, question_number);

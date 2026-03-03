@@ -1,6 +1,7 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "@/components/api-fetch";
 import { AppShell } from "@/components/app-shell";
 import { AuthPanel } from "@/components/auth-panel";
@@ -22,6 +23,7 @@ interface Topic {
 interface Question {
   id: string;
   topic_id: string;
+  question_number: number;
   prompt: string;
   difficulty: number;
   active: boolean;
@@ -36,6 +38,7 @@ interface Question {
 interface QuestionEditor {
   id: string;
   topic_id: string;
+  question_number: number;
   prompt: string;
   ideal_answer: string;
   key_points: string;
@@ -64,8 +67,10 @@ interface BulkUploadResponse {
 }
 
 export default function AdminPage() {
+  const router = useRouter();
   const { user, accessToken, loading } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [checkingAdmin, setCheckingAdmin] = useState(true);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -77,6 +82,7 @@ export default function AdminPage() {
 
   const [questionForm, setQuestionForm] = useState({
     topic_id: "",
+    question_number: 1,
     prompt: "",
     ideal_answer: "",
     key_points: "",
@@ -88,6 +94,23 @@ export default function AdminPage() {
   const [bulkContent, setBulkContent] = useState("");
   const [bulkFileName, setBulkFileName] = useState<string | null>(null);
 
+  const groupedQuestions = useMemo(() => {
+    const grouped = new Map<string, Question[]>();
+    for (const question of questions) {
+      const topicName = question.topic?.name ?? "Unknown";
+      const topicQuestions = grouped.get(topicName) ?? [];
+      topicQuestions.push(question);
+      grouped.set(topicName, topicQuestions);
+    }
+
+    return Array.from(grouped.entries())
+      .map(([topicName, topicQuestions]) => ({
+        topicName,
+        questions: topicQuestions.sort((a, b) => a.question_number - b.question_number)
+      }))
+      .sort((a, b) => a.topicName.localeCompare(b.topicName));
+  }, [questions]);
+
   async function refresh() {
     if (!accessToken) return;
 
@@ -97,7 +120,7 @@ export default function AdminPage() {
     setIsAdmin(admin);
 
     if (!admin) {
-      setStatus("You do not have admin permissions.");
+      router.replace("/");
       return;
     }
 
@@ -118,12 +141,18 @@ export default function AdminPage() {
     if (!bulkTopicId && firstTopicId) {
       setBulkTopicId(firstTopicId);
     }
+
+    setCheckingAdmin(false);
   }
 
   useEffect(() => {
     if (!accessToken) return;
 
-    refresh().catch((error) => setStatus(error.message));
+    setCheckingAdmin(true);
+    refresh().catch((error) => {
+      setStatus(error.message);
+      setCheckingAdmin(false);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken]);
 
@@ -230,6 +259,7 @@ export default function AdminPage() {
     setEditingQuestion({
       id: question.id,
       topic_id: question.topic_id,
+      question_number: Math.max(1, Number(question.question_number) || 1),
       prompt: question.prompt,
       ideal_answer: question.ideal_answer,
       key_points: (question.key_points ?? []).join("\n"),
@@ -270,6 +300,22 @@ export default function AdminPage() {
     return (
       <AppShell title="Admin" subtitle="Sign in required">
         <AuthPanel />
+      </AppShell>
+    );
+  }
+
+  if (checkingAdmin) {
+    return (
+      <AppShell title="Admin" subtitle="Checking access...">
+        <div className="card">Checking admin access...</div>
+      </AppShell>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <AppShell title="Admin" subtitle="Redirecting...">
+        <div className="card">Redirecting to home...</div>
       </AppShell>
     );
   }
@@ -323,6 +369,20 @@ export default function AdminPage() {
               </option>
             ))}
           </select>
+
+          <input
+            type="number"
+            min={1}
+            value={questionForm.question_number}
+            onChange={(event) =>
+              setQuestionForm((prev) => ({
+                ...prev,
+                question_number: Math.max(1, Number(event.target.value) || 1)
+              }))
+            }
+            placeholder="Question number"
+            required
+          />
 
           <textarea
             value={questionForm.prompt}
@@ -382,6 +442,18 @@ export default function AdminPage() {
               ))}
             </select>
 
+            <input
+              type="number"
+              min={1}
+              value={editingQuestion.question_number}
+              onChange={(event) =>
+                setEditingQuestion((prev) =>
+                  prev ? { ...prev, question_number: Math.max(1, Number(event.target.value) || 1) } : prev
+                )
+              }
+              required
+            />
+
             <textarea
               value={editingQuestion.prompt}
               onChange={(event) =>
@@ -434,34 +506,42 @@ export default function AdminPage() {
       <div className="card span-2">
         <h2>Questions</h2>
         {questions.length === 0 ? <p className="muted">No questions yet.</p> : null}
-        <div className="admin-list">
-          {questions.map((question) => (
-            <div key={question.id} className="admin-item">
-              <div>
-                <strong>{question.prompt}</strong>
-                <p className="muted small">
-                  {question.topic?.name ?? "Unknown"} • Difficulty {question.difficulty} •{" "}
-                  {question.active ? "Active" : "Inactive"}
-                </p>
-              </div>
-              <div className="inline-actions">
-                <button className="secondary" onClick={() => startEdit(question)} disabled={!isAdmin}>
-                  Edit
-                </button>
-                <button className="danger" onClick={() => removeQuestion(question.id)} disabled={!isAdmin}>
-                  Delete
-                </button>
-              </div>
+        {groupedQuestions.map((topicGroup) => (
+          <details key={topicGroup.topicName} className="admin-topic-group" open>
+            <summary>
+              {topicGroup.topicName} ({topicGroup.questions.length})
+            </summary>
+            <div className="admin-list">
+              {topicGroup.questions.map((question) => (
+                <div key={question.id} className="admin-item">
+                  <div>
+                    <strong>
+                      Q{question.question_number}: {question.prompt}
+                    </strong>
+                    <p className="muted small">
+                      Difficulty {question.difficulty} • {question.active ? "Active" : "Inactive"}
+                    </p>
+                  </div>
+                  <div className="inline-actions">
+                    <button className="secondary" onClick={() => startEdit(question)} disabled={!isAdmin}>
+                      Edit
+                    </button>
+                    <button className="danger" onClick={() => removeQuestion(question.id)} disabled={!isAdmin}>
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </details>
+        ))}
       </div>
 
       <div className="card span-2">
         <h2>Bulk Upload</h2>
         <p className="muted small">
-          Upload a file or paste JSON/CSV. Supported columns/keys: topic_id or topic, prompt, ideal_answer, key_points,
-          active.
+          Upload a file or paste JSON/CSV. Supported columns/keys: topic_id or topic, question_number, prompt,
+          ideal_answer, key_points, active.
         </p>
         <form className="stack" onSubmit={uploadBulkQuestions}>
           <select value={bulkTopicId} onChange={(event) => setBulkTopicId(event.target.value)}>
@@ -480,11 +560,11 @@ export default function AdminPage() {
             value={bulkContent}
             onChange={(event) => setBulkContent(event.target.value)}
             placeholder={`CSV example:
-topic,prompt,ideal_answer,key_points,active
-JavaScript,What is event loop?,It manages async callbacks,call stack|microtasks|macrotasks,true
+topic,question_number,prompt,ideal_answer,key_points,active
+JavaScript,1,What is event loop?,It manages async callbacks,call stack|microtasks|macrotasks,true
 
 JSON example:
-[{"topic":"JavaScript","prompt":"What is closure?","ideal_answer":"...","key_points":["scope","function"],"active":true}]`}
+[{"topic":"JavaScript","question_number":2,"prompt":"What is closure?","ideal_answer":"...","key_points":["scope","function"],"active":true}]`}
             rows={12}
             required
           />

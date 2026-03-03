@@ -30,81 +30,169 @@ export async function ensureProfile(userId: string, email: string, timezone?: st
 }
 
 export async function getOrAssignDailyQuestions(userId: string) {
-  const supabase = getServiceClient();
+  const { timezone, today } = await getUserDayContext(userId);
+  let existing = await loadDailyQuestionsForDay(userId, today);
 
-  const { data: profile, error: profileError } = await supabase
+  if (existing.length === 0) {
+    await assignNextQuestionForUserDay(userId, today);
+    existing = await loadDailyQuestionsForDay(userId, today);
+  }
+
+  return { questions: existing, day: today, timezone };
+}
+
+export async function assignNextDailyQuestion(userId: string) {
+  const { timezone, today } = await getUserDayContext(userId);
+  const addedQuestion = await assignNextQuestionForUserDay(userId, today);
+  const questions = await loadDailyQuestionsForDay(userId, today);
+
+  return {
+    questions,
+    day: today,
+    timezone,
+    added: Boolean(addedQuestion),
+    addedQuestionId: addedQuestion?.id ?? null
+  };
+}
+
+async function getUserDayContext(userId: string) {
+  const supabase = getServiceClient();
+  const { data: profile, error } = await supabase
     .from("profiles")
     .select("timezone")
     .eq("id", userId)
     .single();
 
-  if (profileError) {
-    throw new Error(`Failed to load profile: ${profileError.message}`);
+  if (error) {
+    throw new Error(`Failed to load profile: ${error.message}`);
   }
 
   const timezone = profile?.timezone ?? "UTC";
-  const today = getDayInTimezone(timezone);
+  return { timezone, today: getDayInTimezone(timezone) };
+}
 
-  const { data: existing, error: existingError } = await supabase
+async function loadDailyQuestionsForDay(userId: string, day: string) {
+  const supabase = getServiceClient();
+  const { data, error } = await supabase
     .from("daily_questions")
     .select("*, question:questions(*, topic:topics(*))")
     .eq("user_id", userId)
-    .eq("day", today)
+    .eq("day", day)
     .order("created_at", { ascending: true });
 
-  if (existingError) {
-    throw new Error(`Failed to load daily questions: ${existingError.message}`);
+  if (error) {
+    throw new Error(`Failed to load daily questions: ${error.message}`);
   }
 
-  if (existing && existing.length > 0) {
-    return { questions: existing as DailyQuestion[], day: today, timezone };
+  return (data ?? []) as DailyQuestion[];
+}
+
+async function assignNextQuestionForUserDay(userId: string, day: string) {
+  const supabase = getServiceClient();
+  const { data: assignedRows, error: assignedError } = await supabase
+    .from("daily_questions")
+    .select("question_id")
+    .eq("user_id", userId);
+
+  if (assignedError) {
+    throw new Error(`Failed to load assigned questions: ${assignedError.message}`);
   }
 
-  const count = Math.random() < 0.55 ? 1 : 2;
+  const assignedIds = new Set(
+    (assignedRows ?? [])
+      .map((row) => row.question_id)
+      .filter((questionId): questionId is string => typeof questionId === "string" && questionId.length > 0)
+  );
 
-  const { data: allQuestions, error: questionError } = await supabase
+  const { data: availableQuestions, error: questionError } = await supabase
     .from("questions")
     .select("id")
-    .eq("active", true);
+    .eq("active", true)
+    .order("question_number", { ascending: true })
+    .order("created_at", { ascending: true });
 
   if (questionError) {
     throw new Error(`Failed to load questions: ${questionError.message}`);
   }
 
-  if (!allQuestions || allQuestions.length === 0) {
-    return { questions: [], day: today, timezone };
+  const nextQuestion = (availableQuestions ?? []).find((question) => !assignedIds.has(question.id));
+  if (!nextQuestion?.id) {
+    return null;
   }
 
-  const shuffled = [...allQuestions].sort(() => Math.random() - 0.5);
-  const picked = shuffled.slice(0, Math.min(count, shuffled.length)).map((q) => ({
-    user_id: userId,
-    question_id: q.id,
-    day: today,
-    unlocked_at: new Date().toISOString(),
-    locked: false,
-    hints_used: 0,
-    xp_earned: 0,
-    gave_up: false
-  }));
-
-  const { error: insertError } = await supabase.from("daily_questions").insert(picked);
+  const { data: inserted, error: insertError } = await supabase
+    .from("daily_questions")
+    .insert({
+      user_id: userId,
+      question_id: nextQuestion.id,
+      day,
+      unlocked_at: new Date().toISOString(),
+      locked: false,
+      hints_used: 0,
+      xp_earned: 0,
+      gave_up: false
+    })
+    .select("*, question:questions(*, topic:topics(*))")
+    .single();
 
   if (insertError) {
-    throw new Error(`Failed to assign daily questions: ${insertError.message}`);
+    throw new Error(`Failed to assign next question: ${insertError.message}`);
   }
 
-  const { data: assigned, error: assignedError } = await supabase
+  return inserted as DailyQuestion;
+}
+
+export async function getAnsweredQuestionsByTopic(userId: string) {
+  const supabase = getServiceClient();
+  const { data, error } = await supabase
     .from("daily_questions")
-    .select("*, question:questions(*, topic:topics(*))")
+    .select("id, day, ai_score, xp_earned, gave_up, question:questions(question_number, prompt, topic:topics(name))")
     .eq("user_id", userId)
-    .eq("day", today)
-    .order("created_at", { ascending: true });
+    .eq("locked", true)
+    .order("attempted_at", { ascending: false });
 
-  if (assignedError) {
-    throw new Error(`Failed to reload assigned questions: ${assignedError.message}`);
+  if (error) {
+    throw new Error(`Failed to load answered questions: ${error.message}`);
   }
 
-  return { questions: (assigned ?? []) as DailyQuestion[], day: today, timezone };
+  const grouped = new Map<
+    string,
+    Array<{
+      id: string;
+      day: string;
+      questionNumber: number;
+      prompt: string;
+      score: number | null;
+      xpEarned: number;
+      gaveUp: boolean;
+    }>
+  >();
+
+  for (const row of data ?? []) {
+    const question = Array.isArray(row.question) ? row.question[0] : row.question;
+    const topic = Array.isArray(question?.topic) ? question.topic[0] : question?.topic;
+    const topicName = topic?.name ?? "General";
+    const topicRows = grouped.get(topicName) ?? [];
+
+    topicRows.push({
+      id: row.id,
+      day: row.day,
+      questionNumber: Math.max(1, Number(question?.question_number) || 1),
+      prompt: typeof question?.prompt === "string" ? question.prompt : "Untitled question",
+      score: row.ai_score === null ? null : Number(row.ai_score),
+      xpEarned: Number(row.xp_earned) || 0,
+      gaveUp: Boolean(row.gave_up)
+    });
+
+    grouped.set(topicName, topicRows);
+  }
+
+  return Array.from(grouped.entries())
+    .map(([topicName, questions]) => ({
+      topicName,
+      questions: questions.sort((a, b) => a.questionNumber - b.questionNumber)
+    }))
+    .sort((a, b) => a.topicName.localeCompare(b.topicName));
 }
 
 export async function incrementHint(dailyQuestionId: string) {
