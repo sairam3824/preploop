@@ -497,7 +497,7 @@ export default function PracticePage() {
                       ? "Ask follow-up questions about this answer..."
                       : "Type your answer or ask coach for guidance..."
                   }
-                  rows={5}
+                  rows={4}
                   required
                 />
                 <div className="inline-actions">
