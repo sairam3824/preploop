@@ -23,29 +23,42 @@ export function AppShell({
 }) {
   const pathname = usePathname();
 
+  function isActive(href: string) {
+    return pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
+  }
+
   return (
     <div className="app-bg">
-      <main className="container">
-        <header className="hero-card">
-          <div>
-            <h1>{title}</h1>
-            {subtitle ? <p>{subtitle}</p> : null}
-          </div>
-          {right ? <div className="hero-right">{right}</div> : null}
-        </header>
+      {/* Top bar — brand always visible, nav links visible on ≥640px */}
+      <header className="top-nav">
+        <div className="nav-inner">
+          <span className="brand-text">PrepLoop</span>
+          <nav className="nav-links">
+            {navItems.map((item) => (
+              <Link key={item.href} href={item.href} className={isActive(item.href) ? "nav-link active" : "nav-link"}>
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+          {right ? <div className="nav-right">{right}</div> : null}
+        </div>
+      </header>
 
+      <main className="main-container">
+        <div className="page-header">
+          <h1 className="page-title">{title}</h1>
+          {subtitle ? <p className="page-subtitle">{subtitle}</p> : null}
+        </div>
         <section className="content-grid">{children}</section>
       </main>
 
+      {/* Bottom tab bar — visible on mobile only (<640px) */}
       <nav className="bottom-nav">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`));
-          return (
-            <Link key={item.href} href={item.href} className={isActive ? "active" : ""}>
-              {item.label}
-            </Link>
-          );
-        })}
+        {navItems.map((item) => (
+          <Link key={item.href} href={item.href} className={isActive(item.href) ? "active" : ""}>
+            {item.label}
+          </Link>
+        ))}
       </nav>
     </div>
   );

@@ -10,7 +10,7 @@ export function StatsStrip({
   }>;
 }) {
   return (
-    <div className="stats-strip">
+    <div className="stats-strip span-2">
       {items.map((item) => (
         <div key={item.label} className={item.highlight ? "stat highlight" : "stat"}>
           <div className="label">{item.label}</div>

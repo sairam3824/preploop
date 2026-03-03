@@ -1,0 +1,310 @@
+/* Clean, Box-Free, Borderless Premium Light Theme */
+:root {
+    --font: "Inter", -apple-system, sans-serif;
+
+    /* Bright White Background */
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f8f9fa;
+    --surface-3: #f1f5f9;
+
+    /* High Contrast Text */
+    --text: #0f172a;
+    /* Slate 900 */
+    --text-2: #64748b;
+    /* Slate 500 */
+    --text-3: #94a3b8;
+    /* Slate 400 */
+
+    /* Vibrant Blue Accent */
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --accent-dim: #eff6ff;
+    --accent-border: transparent;
+    /* No visible lines */
+
+    /* Semantic Colors from screenshot */
+    --green: #10b981;
+    --green-dim: #ecfdf5;
+    --red: #ef4444;
+    --red-dim: #fef2f2;
+    --amber: #f59e0b;
+    --amber-dim: #fffbeb;
+
+    /* Remove all rules/borders */
+    --rule: transparent;
+    --rule-2: transparent;
+
+    /* Remove all shadows */
+    --shadow-xs: none;
+    --shadow-sm: none;
+    --shadow-md: none;
+
+    --r: 20px;
+    --r-sm: 12px;
+    --r-lg: 32px;
+}
+
+body {
+    background: var(--bg) !important;
+    color: var(--text) !important;
+    font-family: var(--font) !important;
+    font-weight: 500 !important;
+    animation: none !important;
+}
+
+/* Remove all backgrounds, borders, and shadows that were added via classes */
+.card,
+.stat,
+.feature-card,
+.question-pill,
+.bubble {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+.card:hover,
+.feature-card:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    border-color: transparent !important;
+    background: transparent !important;
+}
+
+/* Specifically target components to make them box-free */
+.stats-strip {
+    border: none !important;
+    background: transparent !important;
+}
+
+.stat {
+    text-align: center !important;
+    padding: 1rem 0.5rem !important;
+}
+
+.stat .value {
+    font-size: 2.5rem !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.05em !important;
+}
+
+.stat .label {
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    color: var(--text-2) !important;
+    text-transform: uppercase !important;
+    margin-top: 0.5rem !important;
+    letter-spacing: 0.05em !important;
+}
+
+/* Clean Question Pill */
+.question-pill {
+    padding: 1rem 0 !important;
+}
+
+.question-pill:hover {
+    background: var(--surface-2) !important;
+}
+
+/* Highlighted active pill */
+.question-pill.active {
+    background: var(--accent-dim) !important;
+    color: var(--accent) !important;
+    font-weight: 600 !important;
+    border-radius: var(--r-sm) !important;
+    padding: 1rem !important;
+}
+
+/* Clean Navigation Items to resemble the image */
+.nav-link.active {
+    background: var(--accent-dim) !important;
+    color: var(--accent) !important;
+    font-weight: 600 !important;
+    border-radius: var(--r-sm) !important;
+}
+
+/* Base Buttons */
+button,
+.button-link {
+    background: var(--surface-2) !important;
+    color: var(--text) !important;
+    border: none !important;
+    border-radius: var(--r) !important;
+    box-shadow: none !important;
+    font-weight: 600 !important;
+    padding: 0.8rem 1.75rem !important;
+    letter-spacing: 0 !important;
+    text-transform: none !important;
+}
+
+button:hover,
+.button-link:hover {
+    background: var(--surface-3) !important;
+    color: var(--text) !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* Primary/Accent Buttons */
+button[type="submit"],
+.button-primary,
+button:not([class]),
+.button-link:not([class]) {
+    background: var(--accent) !important;
+    color: white !important;
+    border-radius: var(--r-sm) !important;
+}
+
+button[type="submit"]:hover,
+.button-primary:hover,
+button:not([class]):hover,
+.button-link:not([class]):hover {
+    background: var(--accent-hover) !important;
+    color: white !important;
+}
+
+button.secondary,
+.button-link.ghost {
+    background: transparent !important;
+    color: var(--text) !important;
+}
+
+button.secondary:hover,
+.button-link.ghost:hover {
+    background: var(--surface-2) !important;
+    color: var(--text) !important;
+}
+
+/* Remove all static line borders */
+.top-nav,
+.bottom-nav,
+.landing-nav {
+    border: none !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(12px) !important;
+}
+
+.page-header {
+    border-bottom: none !important;
+    margin-bottom: 3rem !important;
+}
+
+.admin-item {
+    border: none !important;
+    border-radius: var(--r-sm) !important;
+    background: var(--surface-2) !important;
+    padding: 1.5rem !important;
+    margin-bottom: 1rem !important;
+}
+
+/* Big Typography for Headers */
+h1,
+.hero-title,
+.page-title {
+    font-size: clamp(2.5rem, 8vw, 4.5rem) !important;
+    font-weight: 900 !important;
+    letter-spacing: -0.05em !important;
+    color: var(--text) !important;
+    line-height: 1.1 !important;
+    background: none !important;
+    -webkit-text-fill-color: initial !important;
+    margin-bottom: 0.5rem !important;
+}
+
+/* Text that is blue */
+.hero-gradient {
+    color: var(--accent) !important;
+    background: none !important;
+    -webkit-text-fill-color: initial !important;
+}
+
+.page-subtitle,
+.hero-description {
+    font-size: 1.125rem !important;
+    color: var(--text-2) !important;
+    font-weight: 500 !important;
+    max-width: 600px !important;
+}
+
+/* Clean, modern inputs */
+input,
+select,
+textarea {
+    background: var(--surface-2) !important;
+    border: none !important;
+    border-radius: var(--r-sm) !important;
+    color: var(--text) !important;
+    padding: 1.25rem !important;
+    font-size: 1rem !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    background: var(--surface-3) !important;
+    box-shadow: 0 0 0 2px var(--accent-dim) !important;
+    border-color: transparent !important;
+}
+
+/* Adjust general layout to be spacious like a modern portfolio */
+.main-container {
+    padding-top: 4rem !important;
+    max-width: 900px !important;
+}
+
+.content-grid {
+    gap: 4rem !important;
+}
+
+/* Custom rounded icon styles like in the image */
+.topic-icon-wrap,
+.feature-icon {
+    background: var(--surface-2) !important;
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: var(--accent) !important;
+}
+
+/* Clean Status Messages without borders */
+.status,
+.card.status {
+    background: var(--green-dim) !important;
+    border: none !important;
+    color: #059669 !important;
+    font-weight: 600 !important;
+}
+
+.error,
+.card.error {
+    background: var(--red-dim) !important;
+    border: none !important;
+    color: var(--red) !important;
+    font-weight: 600 !important;
+}
+
+.locked-note {
+    background: var(--amber-dim) !important;
+    border: none !important;
+    color: #d97706 !important;
+    font-weight: 600 !important;
+}
+
+/* Bubble styling for chat - keep it clean, maybe soft bg, no border */
+.bubble {
+    background: var(--surface-2) !important;
+    border: none !important;
+    padding: 1rem 1.25rem !important;
+}
+
+.bubble.user {
+    background: var(--accent-dim) !important;
+    border: none !important;
+    color: var(--text) !important;
+}
