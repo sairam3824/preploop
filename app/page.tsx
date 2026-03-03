@@ -15,6 +15,7 @@ interface ProfileResponse {
     xp: number;
     level: string;
     streak_count: number;
+    streak_freezes: number;
     total_questions: number;
     correct_answers: number;
     is_admin: boolean;
@@ -27,10 +28,66 @@ interface DailyResponse {
   questions: Array<{ id: string; locked: boolean }>;
 }
 
+interface HistoryResponse {
+  profile: {
+    xp: number;
+    level: string;
+    streak_count: number;
+    total_questions: number;
+    correct_answers: number;
+  };
+  history: Array<{
+    day: string;
+    average_score: number;
+    accuracy_pct: number;
+    streak: number;
+    total_xp: number;
+  }>;
+  topicProgress: Array<{
+    topicName: string;
+    answered: number;
+    avgScore: number;
+    progressPct: number;
+  }>;
+  gamification?: {
+    mastery: Array<{
+      topicId: string;
+      topicName: string;
+      masteryScore: number;
+      attempts: number;
+      correctAttempts: number;
+    }>;
+    missionProgress: Array<{
+      missionId: string;
+      code: string;
+      name: string;
+      description: string;
+      scope: "daily" | "weekly";
+      target: number;
+      progress: number;
+      completed: boolean;
+      xpReward: number;
+    }>;
+    achievements: Array<{
+      code: string;
+      name: string;
+      description: string;
+      xpReward: number;
+      unlockedAt: string;
+    }>;
+    recommendation: {
+      recommendedDifficulty: number;
+      reason: string;
+      focusTopic: string | null;
+    };
+  };
+}
+
 export default function HomePage() {
   const { user, accessToken, loading, signOut } = useAuth();
   const [profile, setProfile] = useState<ProfileResponse["profile"] | null>(null);
   const [daily, setDaily] = useState<DailyResponse | null>(null);
+  const [historyData, setHistoryData] = useState<HistoryResponse | null>(null);
   const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
@@ -38,21 +95,15 @@ export default function HomePage() {
       return;
     }
 
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
     Promise.all([
-      apiFetch<ProfileResponse>("/api/profile", accessToken, {
-        method: "GET",
-        headers: { "x-user-timezone": timezone }
-      }),
-      apiFetch<DailyResponse>("/api/daily", accessToken, {
-        method: "GET",
-        headers: { "x-user-timezone": timezone }
-      })
+      apiFetch<ProfileResponse>("/api/profile", accessToken, { method: "GET" }),
+      apiFetch<DailyResponse>("/api/daily", accessToken, { method: "GET" }),
+      apiFetch<HistoryResponse>("/api/history", accessToken, { method: "GET" })
     ])
-      .then(([profileRes, dailyRes]) => {
+      .then(([profileRes, dailyRes, historyRes]) => {
         setProfile(profileRes.profile);
         setDaily(dailyRes);
+        setHistoryData(historyRes);
       })
       .catch((error) => setStatus(error.message));
   }, [accessToken]);
@@ -70,6 +121,12 @@ export default function HomePage() {
     if (streak >= 3) return "Bronze Consistency";
     return "Starter Badge";
   }, [profile]);
+
+  const history = useMemo(() => historyData?.history ?? [], [historyData?.history]);
+  const maxScore = useMemo(
+    () => Math.max(10, ...history.map((item) => Number(item.average_score) || 0)),
+    [history]
+  );
 
   if (loading) {
     return (
@@ -112,7 +169,7 @@ export default function HomePage() {
               <div className="hero-visual">
                 <div className="visual-headline">Today&apos;s Flow</div>
                 <div className="visual-row">
-                  <span className="visual-label">Question unlocks in your local timezone</span>
+                  <span className="visual-label">Question unlocks daily in IST (UTC+05:30)</span>
                   <span className="visual-value">1-2 prompts</span>
                 </div>
                 <div className="visual-row">
@@ -142,8 +199,8 @@ export default function HomePage() {
             <div className="features-grid">
               <div className="feature-card">
                 <span className="feature-tag">Daily</span>
-                <h3 className="feature-title">Timezone-aware unlocks</h3>
-                <p className="feature-description">Each day opens fresh questions and keeps your cadence predictable.</p>
+                <h3 className="feature-title">IST-based unlocks</h3>
+                <p className="feature-description">Each day opens fresh questions on IST midnight for consistent cadence.</p>
               </div>
 
               <div className="feature-card">
@@ -205,8 +262,8 @@ export default function HomePage() {
           <Link href="/practice" className="button-link">
             Start Practice
           </Link>
-          <Link href="/history" className="button-link ghost">
-            View History
+          <Link href="/chat-history" className="button-link ghost">
+            Open Chat History
           </Link>
         </div>
         {daily ? <p className="muted small">Next unlock in about {daily.hoursUntilUnlock} hour(s).</p> : null}
@@ -235,6 +292,130 @@ export default function HomePage() {
         <h3>Consistency Badge</h3>
         <p className="muted">Current badge: {consistencyBadge}</p>
         <p className="muted small">Maintain daily streaks to unlock higher tiers.</p>
+        <p className="muted small">Streak freezes available: {profile?.streak_freezes ?? 0}</p>
+      </div>
+
+      <div className="card">
+        <h3>AI Recommendation</h3>
+        <p className="muted">
+          Recommended difficulty: D{historyData?.gamification?.recommendation?.recommendedDifficulty ?? 3}
+        </p>
+        {historyData?.gamification?.recommendation?.focusTopic ? (
+          <p className="muted small">Focus topic: {historyData.gamification.recommendation.focusTopic}</p>
+        ) : null}
+        <p className="muted small">
+          {historyData?.gamification?.recommendation?.reason ?? "Complete more questions to unlock recommendations."}
+        </p>
+      </div>
+
+      <div className="card span-2">
+        <h2>Performance Graph</h2>
+        <div className="chart-grid">
+          {history.length === 0 ? <p className="muted">No completed attempts yet.</p> : null}
+          {history.map((point) => (
+            <div key={point.day} className="chart-row">
+              <div className="chart-label">{point.day}</div>
+              <div className="chart-bar-wrap">
+                <div className="chart-bar" style={{ width: `${(point.average_score / maxScore) * 100}%` }} />
+              </div>
+              <div className="chart-value">{point.average_score}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="card span-2">
+        <h2>Topic Progress</h2>
+        {historyData?.topicProgress.length ? (
+          <div className="topic-progress-list">
+            {historyData.topicProgress.map((topic) => (
+              <div key={topic.topicName} className="topic-progress-item">
+                <div className="inline-line">
+                  <strong>{topic.topicName}</strong>
+                  <span className="muted">
+                    {topic.answered} answered • avg {topic.avgScore}/10
+                  </span>
+                </div>
+                <div className="progress-track">
+                  <div className="progress-fill" style={{ width: `${topic.progressPct}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="muted">Topic progress appears after your first scored answer.</p>
+        )}
+      </div>
+
+      <div className="card span-2">
+        <h2>Active Missions</h2>
+        {historyData?.gamification?.missionProgress?.length ? (
+          <div className="topic-progress-list">
+            {historyData.gamification.missionProgress.map((mission) => {
+              const pct = Math.min(100, Math.round((mission.progress / mission.target) * 100));
+              return (
+                <div key={`${mission.missionId}-${mission.code}`} className="topic-progress-item">
+                  <div className="inline-line">
+                    <strong>
+                      {mission.name} ({mission.scope})
+                    </strong>
+                    <span className="muted">
+                      {Math.min(mission.progress, mission.target)}/{mission.target} • +{mission.xpReward} XP
+                    </span>
+                  </div>
+                  <p className="muted small">{mission.description}</p>
+                  <div className="progress-track">
+                    <div className="progress-fill" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="muted">No active missions yet.</p>
+        )}
+      </div>
+
+      <div className="card span-2">
+        <h2>Topic Mastery</h2>
+        {historyData?.gamification?.mastery?.length ? (
+          <div className="topic-progress-list">
+            {historyData.gamification.mastery.map((row) => (
+              <div key={row.topicId} className="topic-progress-item">
+                <div className="inline-line">
+                  <strong>{row.topicName}</strong>
+                  <span className="muted">
+                    {Math.round(row.masteryScore)}/100 • {row.correctAttempts}/{row.attempts} correct
+                  </span>
+                </div>
+                <div className="progress-track">
+                  <div className="progress-fill" style={{ width: `${Math.min(100, Math.round(row.masteryScore))}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="muted">Mastery starts tracking after first completed answer.</p>
+        )}
+      </div>
+
+      <div className="card span-2">
+        <h2>Recent Achievements</h2>
+        {historyData?.gamification?.achievements?.length ? (
+          <div className="topic-progress-list">
+            {historyData.gamification.achievements.slice(0, 8).map((achievement) => (
+              <div key={`${achievement.code}-${achievement.unlockedAt}`} className="topic-progress-item">
+                <div className="inline-line">
+                  <strong>{achievement.name}</strong>
+                  <span className="muted">+{achievement.xpReward} XP</span>
+                </div>
+                <p className="muted small">{achievement.description}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="muted">No achievements unlocked yet.</p>
+        )}
       </div>
 
       {profile?.is_admin ? (

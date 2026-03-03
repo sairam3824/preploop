@@ -14,6 +14,13 @@ interface AdminStats {
   averageScore: number;
 }
 
+interface AdminSystemStatus {
+  previewColumnsEnabled: boolean;
+  summaryColumnsEnabled: boolean;
+  pendingPreviewBackfill: number;
+  chatHistoryFastPath: boolean;
+}
+
 interface Topic {
   id: string;
   name: string;
@@ -72,6 +79,7 @@ export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [checkingAdmin, setCheckingAdmin] = useState(true);
   const [stats, setStats] = useState<AdminStats | null>(null);
+  const [systemStatus, setSystemStatus] = useState<AdminSystemStatus | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [status, setStatus] = useState<string | null>(null);
@@ -124,15 +132,17 @@ export default function AdminPage() {
       return;
     }
 
-    const [statsRes, topicsRes, questionsRes] = await Promise.all([
+    const [statsRes, topicsRes, questionsRes, systemRes] = await Promise.all([
       apiFetch<AdminStats>("/api/admin/stats", accessToken),
       apiFetch<{ topics: Topic[] }>("/api/admin/topics", accessToken),
-      apiFetch<{ questions: Question[] }>("/api/admin/questions", accessToken)
+      apiFetch<{ questions: Question[] }>("/api/admin/questions", accessToken),
+      apiFetch<AdminSystemStatus>("/api/admin/system", accessToken)
     ]);
 
     setStats(statsRes);
     setTopics(topicsRes.topics);
     setQuestions(questionsRes.questions);
+    setSystemStatus(systemRes);
 
     const firstTopicId = topicsRes.topics[0]?.id ?? "";
     if (!questionForm.topic_id && firstTopicId) {
@@ -331,6 +341,26 @@ export default function AdminPage() {
           ]}
         />
       ) : null}
+
+      <div className="card span-2">
+        <h2>System Status</h2>
+        <div className="inline-line">
+          <strong>Chat History Fast Path:</strong>
+          <span className="muted">
+            {systemStatus?.chatHistoryFastPath ? "Enabled" : "Needs Supabase migration"}
+          </span>
+        </div>
+        <div className="inline-line">
+          <strong>Session Summary Columns:</strong>
+          <span className="muted">
+            {systemStatus?.summaryColumnsEnabled ? "Enabled" : "Missing"}
+          </span>
+        </div>
+        <div className="inline-line">
+          <strong>Pending Chat Preview Backfill:</strong>
+          <span className="muted">{systemStatus?.pendingPreviewBackfill ?? 0}</span>
+        </div>
+      </div>
 
       <div className="card">
         <h2>Add Topic</h2>

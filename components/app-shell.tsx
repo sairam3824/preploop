@@ -5,9 +5,8 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 const navItems = [
-  { href: "/", label: "Home" },
   { href: "/practice", label: "Practice" },
-  { href: "/history", label: "History" }
+  { href: "/chat-history", label: "Chat History" }
 ];
 
 export function AppShell({
@@ -32,7 +31,9 @@ export function AppShell({
       {/* Top bar — brand always visible, nav links visible on ≥640px */}
       <header className="top-nav">
         <div className="nav-inner">
-          <span className="brand-text">PrepLoop</span>
+          <Link href="/" className="brand-text brand-link">
+            PrepLoop
+          </Link>
           <nav className="nav-links">
             {navItems.map((item) => (
               <Link key={item.href} href={item.href} className={isActive(item.href) ? "nav-link active" : "nav-link"}>
