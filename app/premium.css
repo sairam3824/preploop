@@ -308,3 +308,29 @@ textarea:focus {
     border: none !important;
     color: var(--text) !important;
 }
+
+@media (max-width: 639px) {
+  /* Undo desktop-sized spacing that premium.css forces with !important */
+  .main-container {
+    padding-top: 1.75rem !important;   /* was 4rem */
+  }
+
+  .content-grid {
+    gap: 2rem !important;              /* was 4rem */
+  }
+
+  .page-header {
+    margin-bottom: 1.5rem !important;  /* was 3rem */
+  }
+
+  .admin-item {
+    padding: 1rem !important;          /* was 1.5rem */
+  }
+
+  /* Reduce oversized page/hero headings on small screens */
+  h1,
+  .hero-title,
+  .page-title {
+    font-size: clamp(1.75rem, 7vw, 2.75rem) !important;  /* was clamp(2.5rem,8vw,4.5rem) */
+  }
+}
