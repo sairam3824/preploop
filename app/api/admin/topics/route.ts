@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { forbiddenResponse, getAuthContext, unauthorizedResponse } from "@/lib/auth";
+import { forbiddenResponse, getAuthContext, routeErrorResponse } from "@/lib/auth";
 import { getServiceClient } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
     return Response.json({ topics: data ?? [] });
   } catch (error) {
-    return unauthorizedResponse(error instanceof Error ? error.message : "Unauthorized");
+    return routeErrorResponse(error);
   }
 }
 
@@ -49,6 +49,6 @@ export async function POST(req: NextRequest) {
 
     return Response.json({ success: true });
   } catch (error) {
-    return unauthorizedResponse(error instanceof Error ? error.message : "Unauthorized");
+    return routeErrorResponse(error);
   }
 }

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { forbiddenResponse, getAuthContext, unauthorizedResponse } from "@/lib/auth";
+import { forbiddenResponse, getAuthContext, routeErrorResponse } from "@/lib/auth";
 import { getModelName, getOpenAIClient } from "@/lib/openai";
 import { getServiceClient } from "@/lib/supabase/server";
 
@@ -145,18 +145,20 @@ async function inferDifficulty(draft: Pick<QuestionDraft, "prompt" | "ideal_answ
   return fallback;
 }
 
-function parseCsvLine(line: string): string[] {
-  const values: string[] = [];
-  let current = "";
+function parseCsvRows(content: string): BulkRow[] {
+  const normalized = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const parsedRows: string[][] = [];
+  let currentField = "";
+  let currentRow: string[] = [];
   let inQuotes = false;
 
-  for (let i = 0; i < line.length; i += 1) {
-    const char = line[i];
+  for (let index = 0; index < normalized.length; index += 1) {
+    const char = normalized[index];
 
     if (char === "\"") {
-      if (inQuotes && line[i + 1] === "\"") {
-        current += "\"";
-        i += 1;
+      if (inQuotes && normalized[index + 1] === "\"") {
+        currentField += "\"";
+        index += 1;
       } else {
         inQuotes = !inQuotes;
       }
@@ -164,37 +166,41 @@ function parseCsvLine(line: string): string[] {
     }
 
     if (char === "," && !inQuotes) {
-      values.push(current.trim());
-      current = "";
+      currentRow.push(currentField.trim());
+      currentField = "";
       continue;
     }
 
-    current += char;
+    if (char === "\n" && !inQuotes) {
+      currentRow.push(currentField.trim());
+      if (currentRow.some((value) => value.length > 0)) {
+        parsedRows.push(currentRow);
+      }
+      currentRow = [];
+      currentField = "";
+      continue;
+    }
+
+    currentField += char;
   }
 
-  values.push(current.trim());
-  return values;
-}
+  currentRow.push(currentField.trim());
+  if (currentRow.some((value) => value.length > 0)) {
+    parsedRows.push(currentRow);
+  }
 
-function parseCsvRows(content: string): BulkRow[] {
-  const lines = content
-    .replace(/\r\n/g, "\n")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  if (lines.length < 2) {
+  if (parsedRows.length < 2) {
     return [];
   }
 
-  const headers = parseCsvLine(lines[0]).map((header) => header.toLowerCase());
+  const headers = parsedRows[0].map((header) => header.toLowerCase());
   if (headers.length === 0) {
     return [];
   }
 
   const rows: BulkRow[] = [];
-  for (let index = 1; index < lines.length; index += 1) {
-    const values = parseCsvLine(lines[index]);
+  for (let index = 1; index < parsedRows.length; index += 1) {
+    const values = parsedRows[index];
     const record: Record<string, unknown> = {};
 
     headers.forEach((header, headerIndex) => {
@@ -396,7 +402,7 @@ export async function GET(req: NextRequest) {
 
     return Response.json({ questions: data ?? [] });
   } catch (error) {
-    return unauthorizedResponse(error instanceof Error ? error.message : "Unauthorized");
+    return routeErrorResponse(error);
   }
 }
 
@@ -516,7 +522,7 @@ export async function POST(req: NextRequest) {
       invalidRows: invalidRows.slice(0, 20)
     });
   } catch (error) {
-    return unauthorizedResponse(error instanceof Error ? error.message : "Unauthorized");
+    return routeErrorResponse(error);
   }
 }
 
@@ -604,7 +610,7 @@ export async function PUT(req: NextRequest) {
 
     return Response.json({ success: true, difficulty: updatePayload.difficulty ?? null });
   } catch (error) {
-    return unauthorizedResponse(error instanceof Error ? error.message : "Unauthorized");
+    return routeErrorResponse(error);
   }
 }
 
@@ -630,6 +636,6 @@ export async function DELETE(req: NextRequest) {
 
     return Response.json({ success: true });
   } catch (error) {
-    return unauthorizedResponse(error instanceof Error ? error.message : "Unauthorized");
+    return routeErrorResponse(error);
   }
 }

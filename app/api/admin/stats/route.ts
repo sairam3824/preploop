@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { forbiddenResponse, getAuthContext, unauthorizedResponse } from "@/lib/auth";
+import { forbiddenResponse, getAuthContext, routeErrorResponse } from "@/lib/auth";
 import { getServiceClient } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
@@ -29,6 +29,6 @@ export async function GET(req: NextRequest) {
       averageScore
     });
   } catch (error) {
-    return unauthorizedResponse(error instanceof Error ? error.message : "Unauthorized");
+    return routeErrorResponse(error);
   }
 }
