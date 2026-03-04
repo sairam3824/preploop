@@ -5,8 +5,7 @@ import {
   calculateXp,
   calculateXpBreakdown,
   getMissionPeriod,
-  recommendDifficulty,
-  XpBreakdown
+  recommendDifficulty
 } from "@/lib/gamification";
 import { APP_TIMEZONE, getDayInTimezone, updateStreak } from "@/lib/time";
 import {
@@ -116,6 +115,10 @@ export async function ensureProfile(userId: string, email: string, _timezone?: s
 
 export async function getOrAssignDailyQuestions(userId: string) {
   const { timezone, today } = await getUserDayContext(userId);
+
+  // Always carry forward any unanswered question from previous days before loading today
+  await carryForwardUnansweredQuestion(userId, today);
+
   let existing = await loadDailyQuestionsForDay(userId, today);
 
   if (existing.length === 0) {
@@ -124,6 +127,38 @@ export async function getOrAssignDailyQuestions(userId: string) {
   }
 
   return { questions: existing, day: today, timezone };
+}
+
+async function carryForwardUnansweredQuestion(userId: string, today: string) {
+  const supabase = getServiceClient();
+  const { data, error } = await supabase
+    .from("daily_questions")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("locked", false)
+    .lt("day", today)
+    .order("day", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to check unanswered questions: ${error.message}`);
+  }
+
+  if (!data?.id) {
+    return false;
+  }
+
+  const { error: updateError } = await supabase
+    .from("daily_questions")
+    .update({ day: today })
+    .eq("id", data.id);
+
+  if (updateError) {
+    throw new Error(`Failed to carry forward unanswered question: ${updateError.message}`);
+  }
+
+  return true;
 }
 
 export async function assignNextDailyQuestion(userId: string, topicId?: string) {
@@ -140,7 +175,7 @@ export async function assignNextDailyQuestion(userId: string, topicId?: string) 
   };
 }
 
-async function getUserDayContext(userId: string) {
+async function getUserDayContext(_userId: string) {
   return { timezone: APP_TIMEZONE, today: getDayInTimezone(APP_TIMEZONE) };
 }
 
